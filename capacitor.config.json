@@ -1,0 +1,10 @@
+{
+  "appId": "com.healthpro.app",
+  "appName": "Health Pro",
+  "webDir": "www",
+  "android": {
+    "allowMixedContent": true,
+    "backgroundColor": "#0a0e1a"
+  },
+  "plugins": {}
+}
