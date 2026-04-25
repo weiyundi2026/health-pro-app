@@ -1,0 +1,83 @@
+name: Build Android APK
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          
+      - name: Install dependencies
+        run: |
+          npm install
+          npm install @capacitor/core @capacitor/cli
+          
+      - name: Sync web assets
+        run: npx cap sync android
+        
+      - name: Setup Java
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+          
+      - name: Build Android APK
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleDebug
+          
+      - name: Remove DUMP permission from APK
+        run: |
+          cp android/app/build/outputs/apk/debug/app-debug.apk temp.apk
+          python3 -c "
+          import zipfile
+          import os
+          import shutil
+          
+          # Unzip
+          with zipfile.ZipFile('temp.apk', 'r') as zip_ref:
+              zip_ref.extractall('unpacked')
+          
+          # Edit AndroidManifest.xml to remove DUMP permission
+          manifest_path = 'unpacked/AndroidManifest.xml'
+          if os.path.exists(manifest_path):
+              with open(manifest_path, 'rb') as f:
+                  content = f.read()
+              # Remove android.permission.DUMP
+              content = content.replace(b'<uses-permission android:name=\"android.permission.DUMP\"/>', b'')
+              with open(manifest_path, 'wb') as f:
+                  f.write(content)
+              print('Removed DUMP permission')
+          
+          # Repack
+          with zipfile.ZipFile('app-debug.apk', 'w', zipfile.ZIP_DEFLATED) as zipf:
+              for root, dirs, files in os.walk('unpacked'):
+                  for file in files:
+                      file_path = os.path.join(root, file)
+                      arcname = os.path.relpath(file_path, 'unpacked')
+                      zipf.write(file_path, arcname)
+          
+          shutil.rmtree('unpacked')
+          os.remove('temp.apk')
+          print('APK rebuilt successfully')
+          "
+          
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: HealthPro-APK-v3.3.0
+          path: app-debug.apk
